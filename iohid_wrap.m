@@ -212,14 +212,10 @@ static HIDRunner *hid;
 	prep->buttons3 = ((ticks << 2) & 0xFF) | (touchpad ? 2 : 0) | (PS ? 1 : 0);
 	prep->left_trigger = L2 ? 255 : 0;
 	prep->right_trigger = R2 ? 255 : 0;
-	left_x = fmin(fmax(128 + leftX , 0), 255);
-	left_y = fmin(fmax(128 + leftY , 0), 255);
-	right_x = fmin(fmax(128 + rightX, 0), 255);
-	right_y = fmin(fmax(128 + rightY, 0), 255);
-	prep->left_x = (uint8_t) left_x;
-	prep->left_y = (uint8_t) left_y;
-	prep->right_x = (uint8_t) right_x;
-	prep->right_y = (uint8_t) right_y;
+	prep->left_x = (uint8_t) fmin(fmax(128 + leftX * 127, 0), 255);
+	prep->left_y = (uint8_t) fmin(fmax(128 + leftY * 127, 0), 255);
+	prep->right_x = (uint8_t) fmin(fmax(128 + rightX * 127, 0), 255);
+	prep->right_y = (uint8_t) fmin(fmax(128 + rightY * 127, 0), 255);
 	callback(context, kIOReturnSuccess, (void *)0xDEADBEEF, kIOHIDReportTypeInput, 0x01, report, 64);
 
 	ticks++;
