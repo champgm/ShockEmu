@@ -1,3 +1,8 @@
+Fork from git@github.com:daeken/ShockEmu.git
+
+Play by Keyborad (using nomouse.se) has no problem.
+Try to fix the mouse problem :)
+
 Setup
 =====
 
