@@ -47,7 +47,7 @@ with file('mapKeys.h', 'w') as fp:
 				if stick not in keysticks:
 					print >>fp, '%sX = %sY = 0;' % (stick, stick)
 					keysticks.append(stick)
-				print >>fp, 'if(%s) %s %s= 1;' % (k, v[:-1], v[-1])
+				print >>fp, 'if(%s) %s %s= 127;' % (k, v[:-1], v[-1])
 			else:
 				print 'Unknown button:', v
 		elif k.startswith('mouseLook.'):
@@ -61,14 +61,16 @@ with file('mapKeys.h', 'w') as fp:
 		if mouseLook['type'] == 'linear':
 			print >>fp, \
 '''if(mouseMoved) {{
-	{stick}X = -mouseAccelX;
-	{stick}Y = mouseAccelY;
+    //NSLog(@"mouseAccelX = %f mouseAccelY = %f", mouseAccelX, mouseAccelY);
+	{stick}X = mouseVelX*{multX};
+	{stick}Y = mouseVelY*{multY};
 	mouseMoved = false;
 }} else {{
 	{stick}X /= {decay};
 	{stick}Y /= {decay};
+    mouseVelX /={decay};
+    mouseVelY /={decay};
 	if(fabs({stick}X) > {deadZone} || fabs({stick}Y) > {deadZone}) {{
-		NSLog(@"Still decaying... %f %f", {stick}X, {stick}Y);
 		[self decayKick];
 	}} else
 		{stick}X = {stick}Y = 0;
