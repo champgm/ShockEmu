@@ -80,7 +80,7 @@ CFTypeRef IOHIDDeviceGetProperty( IOHIDDeviceRef device, CFStringRef key) {
 	} else if(CFStringCompare(key, CFSTR("VersionNumber"), 0) == 0) {
 		return makeUShort(0x100);
 	}
-	return NULL;
+	return CFSTR("");
 }
 
 IOReturn IOHIDDeviceGetReport( IOHIDDeviceRef device, IOHIDReportType reportType, CFIndex reportID, uint8_t *report, CFIndex *pReportLength) {
@@ -129,6 +129,7 @@ IOReturn IOHIDDeviceSetReport( IOHIDDeviceRef device, IOHIDReportType reportType
 	bool kicked, decayKicked;
 
   bool mouseModeToSet;
+  bool activeMouseMode;
 	bool mouseMoved;
 	float mouseVelX, mouseVelY, velXbck, velYbck;
 }
@@ -252,8 +253,18 @@ static HIDRunner *hid;
 }
 
 - (void)keyDown:(NSEvent *)event {
-	hid->keys[[event keyCode]] = true;
-	[hid kick];
+	if([event keyCode] == 53){
+    if(hid->activeMouseMode == YES){
+      CGDisplayHideCursor(kCGDirectMainDisplay);
+    }else{
+      CGDisplayShowCursor(kCGDirectMainDisplay);
+    }
+    hid->activeMouseMode = !hid->activeMouseMode;
+    CGAssociateMouseAndMouseCursorPosition(hid->activeMouseMode);
+  }else{
+  	hid->keys[[event keyCode]] = true;
+  	[hid kick];
+  }
 }
 
 - (void)flagsChanged:(NSEvent *)event {
@@ -287,8 +298,8 @@ static HIDRunner *hid;
   if(!hid->mouseModeToSet){
     CGAssociateMouseAndMouseCursorPosition(NO);
     CGDisplayHideCursor(kCGDirectMainDisplay);
-  }
-  if(!hid->mouseVelX) {
+    hid->mouseModeToSet = YES;
+    hid->activeMouseMode=NO;
   	hid->mouseVelX = 0;
   	hid->mouseVelY = 0;
     hid->velXbck = 0;
