@@ -30,7 +30,7 @@ i = options
 # Map mouse to the right stick
 mouseLook.type = linear # 1:1 translation mode, no curve
 mouseLook.stick = right
-mouseLook.multY = 20 # Flips the Y axis for mouseLook
-mouseLook.multX = 20
-mouseLook.deadZone = .02 # Sets the dead zone for the joystick
+mouseLook.multY = 15 # Flips the Y axis for mouseLook
+mouseLook.multX = 15
+mouseLook.deadZone = .5 # Sets the dead zone for the joystick
 mouseLook.decay = 1.2 # What the joystick movement is divided by at each tick (probably does very little)

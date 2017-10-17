@@ -130,7 +130,7 @@ IOReturn IOHIDDeviceSetReport( IOHIDDeviceRef device, IOHIDReportType reportType
 
   bool mouseModeToSet;
 	bool mouseMoved;
-	float mouseVelX, mouseVelY;
+	float mouseVelX, mouseVelY, velXbck, velYbck;
 }
 @end
 
@@ -149,6 +149,7 @@ static HIDRunner *hid;
 	static dispatch_once_t onceToken;
 	dispatch_once(&onceToken, ^{
 		id cls = NSClassFromString(@"HIDRunner");
+    SWAP(@"_TtC10RemotePlay17RPWindowStreaming", (flagsChanged:));
 		SWAP(@"_TtC10RemotePlay17RPWindowStreaming", (keyDown:));
 		SWAP(@"_TtC10RemotePlay17RPWindowStreaming", (keyUp:));
 		SWAP(@"_TtC10RemotePlay17RPWindowStreaming", (mouseMoved:));
@@ -254,6 +255,12 @@ static HIDRunner *hid;
 	hid->keys[[event keyCode]] = true;
 	[hid kick];
 }
+
+- (void)flagsChanged:(NSEvent *)event {
+	hid->keys[[event keyCode]] = true;
+	[hid kick];
+}
+
 - (void)keyUp:(NSEvent *)event {
 	hid->keys[[event keyCode]] = false;
 	[hid kick];
@@ -276,18 +283,32 @@ static HIDRunner *hid;
 }
 
 - (void)manageMouse:(NSEvent *)event {
-  int deltaX, deltaY;
+  //CGFloat deltaX, deltaY;
   if(!hid->mouseModeToSet){
     CGAssociateMouseAndMouseCursorPosition(NO);
     CGDisplayHideCursor(kCGDirectMainDisplay);
   }
-  CGGetLastMouseDelta(&deltaX, &deltaY);
   if(!hid->mouseVelX) {
   	hid->mouseVelX = 0;
   	hid->mouseVelY = 0;
+    hid->velXbck = 0;
+    hid->velYbck = 0;
   }
-	hid->mouseVelX = deltaX;
-	hid->mouseVelY = deltaY;
+  if(event.deltaX + event.deltaY == 0){
+    hid->mouseVelX = hid->velXbck;
+    hid->mouseVelY = hid->velYbck;
+  }else{
+	  hid->mouseVelX =  (float) event.deltaX;
+	  hid->mouseVelY =  (float) event.deltaY;
+    if(hid->mouseVelX < 2 && hid->mouseVelX > -2){
+      hid->mouseVelX += hid->mouseVelX;
+    }
+    if(hid->mouseVelY < 2 && hid->mouseVelY > -2){
+      hid->mouseVelY += hid->mouseVelY;
+    }
+    hid->velXbck = hid->mouseVelX ;
+    hid->velYbck = hid->mouseVelX ;
+  }
 	hid->mouseMoved = true;
 
 	[hid kick];

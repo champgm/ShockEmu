@@ -68,8 +68,6 @@ with file('mapKeys.h', 'w') as fp:
 }} else {{
 	{stick}X /= {decay};
 	{stick}Y /= {decay};
-    mouseVelX /={decay};
-    mouseVelY /={decay};
 	if(fabs({stick}X) > {deadZone} || fabs({stick}Y) > {deadZone}) {{
 		[self decayKick];
 	}} else
