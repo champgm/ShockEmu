@@ -1,3 +1,8 @@
+Fork from git@github.com:daeken/ShockEmu.git
+
+Play by Keyborad (using nomouse.se) has no problem.
+Try to fix the mouse problem :)
+
 Setup
 =====
 
@@ -18,3 +23,8 @@ How it works
 ============
 
 ShockEmu works by intercepting the IOHID calls of PS4 Remote Play application and presents an emulated DualShock controller.  It also hooks into the input routines of the application, to catch keyboard and mouse inputs, which then get mapped according to your SE file.
+
+How to switch mouse mode
+========================
+
+To show/hide mouse cursor in remoteplay press ESC.

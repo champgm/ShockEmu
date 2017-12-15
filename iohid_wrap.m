@@ -11,11 +11,11 @@
 #include <dlfcn.h>
 
 typedef struct {
-	uint8_t id, 
-	left_x, left_y, 
-	right_x, right_y, 
-	buttons1, buttons2, buttons3, 
-	left_trigger, right_trigger, 
+	uint8_t id,
+	left_x, left_y,
+	right_x, right_y,
+	buttons1, buttons2, buttons3,
+	left_trigger, right_trigger,
 	unk1, unk2, unk3;
 	int16_t gyro_x, gyro_y, gyro_z;
 	int16_t accel_x, accel_y, accel_z;
@@ -80,7 +80,7 @@ CFTypeRef IOHIDDeviceGetProperty( IOHIDDeviceRef device, CFStringRef key) {
 	} else if(CFStringCompare(key, CFSTR("VersionNumber"), 0) == 0) {
 		return makeUShort(0x100);
 	}
-	return NULL;
+	return CFSTR("");
 }
 
 IOReturn IOHIDDeviceGetReport( IOHIDDeviceRef device, IOHIDReportType reportType, CFIndex reportID, uint8_t *report, CFIndex *pReportLength) {
@@ -121,17 +121,17 @@ IOReturn IOHIDDeviceSetReport( IOHIDDeviceRef device, IOHIDReportType reportType
 
 	uint64_t ticks;
 
-	bool X, O, square, triangle, PS, touchpad, options, share, 
+	bool X, O, square, triangle, PS, touchpad, options, share,
 	L1, L2, L3, R1, R2, R3, dpadUp, dpadDown, dpadLeft, dpadRight;
 	float leftX, leftY, rightX, rightY; // -1 to 1
 
 	bool keys[256], leftMouse, rightMouse;
 	bool kicked, decayKicked;
 
+  bool mouseModeToSet;
+  bool activeMouseMode;
 	bool mouseMoved;
-	NSPoint lastMouse;
-	CFAbsoluteTime lastMouseTime;
-	float mouseAccelX, mouseAccelY, mouseVelX, mouseVelY;
+	float mouseVelX, mouseVelY, velXbck, velYbck;
 }
 @end
 
@@ -150,9 +150,13 @@ static HIDRunner *hid;
 	static dispatch_once_t onceToken;
 	dispatch_once(&onceToken, ^{
 		id cls = NSClassFromString(@"HIDRunner");
+    SWAP(@"_TtC10RemotePlay17RPWindowStreaming", (flagsChanged:));
 		SWAP(@"_TtC10RemotePlay17RPWindowStreaming", (keyDown:));
 		SWAP(@"_TtC10RemotePlay17RPWindowStreaming", (keyUp:));
 		SWAP(@"_TtC10RemotePlay17RPWindowStreaming", (mouseMoved:));
+    SWAP(@"_TtC10RemotePlay17RPWindowStreaming", (mouseDragged:));
+    SWAP(@"_TtC10RemotePlay17RPWindowStreaming", (rightMouseDragged:));
+    SWAP(@"_TtC10RemotePlay17RPWindowStreaming", (otherMouseDragged:));
 		SWAP(@"_TtC10RemotePlay17RPWindowStreaming", (mouseDown:));
 		SWAP(@"_TtC10RemotePlay17RPWindowStreaming", (mouseUp:));
 		SWAP(@"_TtC10RemotePlay17RPWindowStreaming", (rightMouseDown:));
@@ -164,7 +168,6 @@ static HIDRunner *hid;
 	runLoop = _runLoop;
 	runLoopMode = _mode;
 	ticks = 0;
-
 	for(int i = 0; i < 256; ++i)
 		keys[i] = false;
 
@@ -178,8 +181,8 @@ static HIDRunner *hid;
 }
 - (void)tick {
 	uint8_t brep[] = {0x01, 0x7f, 0x81, 0x82, 0x7d, 0x08, 0x00, 0xb4, 0x00, 0x00, 0xc8, 0xad, 0xf9, 0x04, 0x00, 0xfe, 0xff, 0xfc, 0xff, 0xe5, 0xfe, 0xcb, 0x1f, 0x69, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x1b, 0x00, 0x00, 0x01, 0x63, 0x8b, 0x80, 0xc1, 0x2e, 0x80, 0x00, 0x00, 0x00, 0x00, 0x80, 0x00, 0x00, 0x00, 0x80, 0x00, 0x00, 0x00, 0x00, 0x80, 0x00, 0x00, 0x00, 0x80, 0x00, 0x00, 0x00, 0x00, 0x80, 0x00};
+	float left_x, left_y, right_x, right_y;
 	PSReport *prep = (PSReport *) report;
-
 	memcpy(report, brep, sizeof(brep));
 
 	[self mapKeys];
@@ -204,7 +207,7 @@ static HIDRunner *hid;
 	else if(dpadDown)
 		dpad = 4;
 	prep->buttons1 = (triangle ? (1 << 7) : 0) | (O ? (1 << 6) : 0) | (X ? (1 << 5) : 0) | (square ? (1 << 4) : 0) | dpad;
-	prep->buttons2 = (R3 ? (1 << 7) : 0) | (L3 ? (1 << 6) : 0) | (options ? (1 << 5) : 0) | (share ? (1 << 4) : 0) | 
+	prep->buttons2 = (R3 ? (1 << 7) : 0) | (L3 ? (1 << 6) : 0) | (options ? (1 << 5) : 0) | (share ? (1 << 4) : 0) |
 		(R2 ? (1 << 3) : 0) | (L2 ? (1 << 2) : 0) | (R1 ? (1 << 1) : 0) | (L1 ? (1 << 0) : 0);
 	prep->buttons3 = ((ticks << 2) & 0xFF) | (touchpad ? 2 : 0) | (PS ? 1 : 0);
 	prep->left_trigger = L2 ? 255 : 0;
@@ -239,7 +242,6 @@ static HIDRunner *hid;
 }
 
 #define JOYDECAY 5
-#define DEADZONE .1
 
 #define DOWN(key) keys[key]
 - (void)mapKeys {
@@ -247,36 +249,79 @@ static HIDRunner *hid;
 }
 
 - (void)keyDown:(NSEvent *)event {
-	//NSLog(@"down %i", [event keyCode]);
+	if([event keyCode] == 53){
+    if(hid->activeMouseMode == YES){
+      CGDisplayHideCursor(kCGDirectMainDisplay);
+    }else{
+      CGDisplayShowCursor(kCGDirectMainDisplay);
+    }
+    hid->activeMouseMode = !hid->activeMouseMode;
+    CGAssociateMouseAndMouseCursorPosition(hid->activeMouseMode);
+  }else{
+  	hid->keys[[event keyCode]] = true;
+  	[hid kick];
+  }
+}
+
+- (void)flagsChanged:(NSEvent *)event {
 	hid->keys[[event keyCode]] = true;
 	[hid kick];
 }
+
 - (void)keyUp:(NSEvent *)event {
-	//NSLog(@"up %i", [event keyCode]);
 	hid->keys[[event keyCode]] = false;
 	[hid kick];
 }
 
 - (void)mouseMoved:(NSEvent *)event {
-	NSLog(@"mouseMoved");
+  [hid manageMouse: event];
+}
 
-	NSPoint mouse = [event locationInWindow];
-	CFAbsoluteTime curtime = CFAbsoluteTimeGetCurrent();
-	float velX = (mouse.x - hid->lastMouse.x) / (curtime - hid->lastMouseTime);
-	float velY = (mouse.y - hid->lastMouse.y) / (curtime - hid->lastMouseTime);
-	hid->mouseAccelX = (velX - hid->mouseVelX) / (curtime - hid->lastMouseTime);
-	hid->mouseAccelY = (velY - hid->mouseVelY) / (curtime - hid->lastMouseTime);
-	NSLog(@"vel %f %f", velX, velY);
-	NSLog(@"accel %f %f", hid->mouseAccelX, hid->mouseAccelY);
-	hid->mouseVelX = velX;
-	hid->mouseVelY = velY;
-	hid->lastMouseTime = curtime;
-	hid->lastMouse = mouse;
+- (void)mouseDragged:(NSEvent *)event {
+  [hid manageMouse: event];
+}
+
+- (void)otherMouseDragged:(NSEvent *)event {
+  [hid manageMouse: event];
+}
+
+- (void)rightMouseDragged:(NSEvent *)event {
+  [hid manageMouse: event];
+}
+
+- (void)manageMouse:(NSEvent *)event {
+  //CGFloat deltaX, deltaY;
+  if(!hid->mouseModeToSet){
+    CGAssociateMouseAndMouseCursorPosition(NO);
+    CGDisplayHideCursor(kCGDirectMainDisplay);
+    hid->mouseModeToSet = YES;
+    hid->activeMouseMode=NO;
+  	hid->mouseVelX = 0;
+  	hid->mouseVelY = 0;
+    hid->velXbck = 0;
+    hid->velYbck = 0;
+  }
+  if(event.deltaX + event.deltaY == 0){
+    hid->mouseVelX = hid->velXbck;
+    hid->mouseVelY = hid->velYbck;
+  }else{
+	  hid->mouseVelX =  (float) event.deltaX;
+	  hid->mouseVelY =  (float) event.deltaY;
+    if(hid->mouseVelX < 2 && hid->mouseVelX > -2){
+      hid->mouseVelX += hid->mouseVelX;
+    }
+    if(hid->mouseVelY < 2 && hid->mouseVelY > -2){
+      hid->mouseVelY += hid->mouseVelY;
+    }
+    hid->velXbck = hid->mouseVelX ;
+    hid->velYbck = hid->mouseVelX ;
+  }
 	hid->mouseMoved = true;
 
 	[hid kick];
 	[hid decayKick];
 }
+
 - (void)mouseDown:(NSEvent *)event {
 	hid->leftMouse = true;
 	[hid kick];
